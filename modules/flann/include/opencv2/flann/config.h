@@ -1,8 +1,8 @@
 /***********************************************************************
  * Software License Agreement (BSD License)
  *
- * Copyright 2008-2009  Marius Muja (***REDACTED-EMAIL***). All rights reserved.
- * Copyright 2008-2009  David G. Lowe (***REDACTED-EMAIL***). All rights reserved.
+ * Copyright 2008-2011  Marius Muja (***REDACTED-EMAIL***). All rights reserved.
+ * Copyright 2008-2011  David G. Lowe (***REDACTED-EMAIL***). All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,55 +27,9 @@
  *************************************************************************/
 
 
-#ifndef OPENCV_FLANN_SAMPLING_H_
-#define OPENCV_FLANN_SAMPLING_H_
+#ifndef OPENCV_FLANN_CONFIG_H_
+#define OPENCV_FLANN_CONFIG_H_
 
-#include "matrix.h"
-#include "random.h"
+#define FLANN_VERSION "1.6.10"
 
-namespace cvflann
-{
-
-template<typename T>
-Matrix<T> random_sample(Matrix<T>& srcMatrix, long size, bool remove = false)
-{
-    Matrix<T> newSet(new T[size * srcMatrix.cols], size,srcMatrix.cols);
-
-    T* src,* dest;
-    for (long i=0; i<size; ++i) {
-        long r = rand_int(srcMatrix.rows-i);
-        dest = newSet[i];
-        src = srcMatrix[r];
-        std::copy(src, src+srcMatrix.cols, dest);
-        if (remove) {
-            src = srcMatrix[srcMatrix.rows-i-1];
-            dest = srcMatrix[r];
-            std::copy(src, src+srcMatrix.cols, dest);
-        }
-    }
-    if (remove) {
-        srcMatrix.rows -= size;
-    }
-    return newSet;
-}
-
-template<typename T>
-Matrix<T> random_sample(const Matrix<T>& srcMatrix, size_t size)
-{
-    UniqueRandom rand(srcMatrix.rows);
-    Matrix<T> newSet(new T[size * srcMatrix.cols], size,srcMatrix.cols);
-
-    T* src,* dest;
-    for (size_t i=0; i<size; ++i) {
-        long r = rand.next();
-        dest = newSet[i];
-        src = srcMatrix[r];
-        std::copy(src, src+srcMatrix.cols, dest);
-    }
-    return newSet;
-}
-
-} // namespace
-
-
-#endif /* OPENCV_FLANN_SAMPLING_H_ */
+#endif /* OPENCV_FLANN_CONFIG_H_ */
