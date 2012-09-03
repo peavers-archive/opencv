@@ -10,13 +10,12 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Institute Of Software Chinese Academy Of Science, all rights reserved.
+// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
 // Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // @Authors
-//    Dachuan Zhao, ***REDACTED-EMAIL***
-//    Yao Wang ***REDACTED-EMAIL***
+//    fangfang bai, ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -44,7 +43,6 @@
 //
 //M*/
 
-
 #include "precomp.hpp"
 #include <iomanip>
 
@@ -60,50 +58,80 @@ PARAM_TEST_CASE(PyrDown, MatType, int)
 {
 	int type;
 	int channels;
-
-    virtual void SetUp()
-    {
-        type = GET_PARAM(0);
-		channels = GET_PARAM(1);
-
-        //int devnums = getDevice(oclinfo);
-        //CV_Assert(devnums > 0);
-        ////if you want to use undefault device, set it here
-        ////setDevice(oclinfo[0]);
-    }
-
-	void Cleanup()
+	//src mat
+	cv::Mat mat1;
+	cv::Mat dst;
+	
+	//std::vector<cv::ocl::Info> oclinfo;
+	//ocl dst mat for testing
+	
+	cv::ocl::oclMat gmat1;
+	cv::ocl::oclMat gdst;
+	
+	
+	virtual void SetUp()
 	{
+		type = GET_PARAM(0);
+		channels = GET_PARAM(1);
+		//int devnums = getDevice(oclinfo);
+		//CV_Assert(devnums > 0);
 	}
-
+	
+	
 };
 
+#define VARNAME(A) string(#A);
 
+////////////////////////////////PyrDown/////////////////////////////////////////////////
 TEST_P(PyrDown, Mat)
 {
-    for(int j = 0; j < LOOP_TIMES; j++)
-    {
-        cv::Size size(MWIDTH, MHEIGHT);
-		cv::RNG &rng = TS::ptr()->get_rng();
-		cv::Mat src=randomMat(rng, size, CV_MAKETYPE(type, channels), 0, 100, false);
-
-		cv::ocl::oclMat gsrc(src), gdst;
-		cv::Mat dst_cpu;
-		cv::pyrDown(src, dst_cpu);
-		cv::ocl::pyrDown(gsrc, gdst);
-
-        cv::Mat dst;
-        gdst.download(dst);
-		char s[1024]={0};
-
-		EXPECT_MAT_NEAR(dst, dst_cpu, dst.depth() == CV_32F ? 1e-4f : 1.0f, s);
-
-		Cleanup();
-    }
+	cv::Size size(MWIDTH, MHEIGHT);
+	cv::RNG &rng = TS::ptr()->get_rng();
+	mat1 = randomMat(rng, size, CV_MAKETYPE(type, channels), 5, 16, false);
+	
+	
+	cv::ocl::oclMat gdst;
+	double totalgputick = 0;
+	double totalgputick_kernel = 0;
+	
+	double t1 = 0;
+	double t2 = 0;
+	
+	for (int j = 0; j < LOOP_TIMES + 1; j ++)
+	{
+	
+		t1 = (double)cvGetTickCount();//gpu start1
+		
+		cv::ocl::oclMat gmat1(mat1);
+		
+		t2 = (double)cvGetTickCount(); //kernel
+		cv::ocl::pyrDown(gmat1, gdst);
+		t2 = (double)cvGetTickCount() - t2;//kernel
+		
+		cv::Mat cpu_dst;
+		gdst.download(cpu_dst);
+		
+		t1 = (double)cvGetTickCount() - t1;//gpu end1
+		
+		if (j == 0)
+		{
+			continue;
+		}
+		
+		totalgputick = t1 + totalgputick;
+		
+		totalgputick_kernel = t2 + totalgputick_kernel;
+		
+	}
+	
+	cout << "average gpu runtime is  " << totalgputick / ((double)cvGetTickFrequency()* LOOP_TIMES * 1000.) << "ms" << endl;
+	cout << "average gpu runtime without data transfer is  " << totalgputick_kernel / ((double)cvGetTickFrequency()* LOOP_TIMES * 1000.) << "ms" << endl;
+	
 }
 
+//********test****************
 INSTANTIATE_TEST_CASE_P(GPU_ImgProc, PyrDown, Combine(
-                            Values(CV_8U, CV_32F), Values(1, 3, 4)));
+                            Values(CV_8U, CV_32F), Values(1, 4)));
 
 
 #endif // HAVE_OPENCL

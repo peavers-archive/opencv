@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////////////
+/*M///////////////////////////////////////////////////////////////////////////////////////
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -10,13 +10,13 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Institute Of Software Chinese Academy Of Science, all rights reserved.
+// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
 // Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // @Authors
-//    Dachuan Zhao, ***REDACTED-EMAIL***
-//    Yao Wang ***REDACTED-EMAIL***
+//	   Fangfang Bai ***REDACTED-EMAIL***
+//    
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -44,11 +44,8 @@
 //
 //M*/
 
-
 #include "precomp.hpp"
 #include <iomanip>
-
-#ifdef HAVE_OPENCL
 
 using namespace cv;
 using namespace cv::ocl;
@@ -56,54 +53,68 @@ using namespace cvtest;
 using namespace testing;
 using namespace std;
 
-PARAM_TEST_CASE(PyrDown, MatType, int)
+///////////////////////////////////////////////////////////////////////////////
+/// ColumnSum
+
+#ifdef HAVE_OPENCL
+
+////////////////////////////////////////////////////////////////////////
+// ColumnSum
+
+PARAM_TEST_CASE(ColumnSum)
 {
-	int type;
-	int channels;
+	cv::Mat src;
+	//std::vector<cv::ocl::Info> oclinfo;
 
-    virtual void SetUp()
-    {
-        type = GET_PARAM(0);
-		channels = GET_PARAM(1);
-
-        //int devnums = getDevice(oclinfo);
-        //CV_Assert(devnums > 0);
-        ////if you want to use undefault device, set it here
-        ////setDevice(oclinfo[0]);
-    }
-
-	void Cleanup()
+	virtual void SetUp()
 	{
+		//int devnums = getDevice(oclinfo);
+		//CV_Assert(devnums > 0);
 	}
-
 };
 
-
-TEST_P(PyrDown, Mat)
+TEST_F(ColumnSum, Performance)
 {
-    for(int j = 0; j < LOOP_TIMES; j++)
-    {
-        cv::Size size(MWIDTH, MHEIGHT);
-		cv::RNG &rng = TS::ptr()->get_rng();
-		cv::Mat src=randomMat(rng, size, CV_MAKETYPE(type, channels), 0, 100, false);
+	cv::Size size(MWIDTH,MHEIGHT);
+    cv::Mat src = randomMat(size, CV_32FC1);
+    cv::ocl::oclMat d_dst;
 
-		cv::ocl::oclMat gsrc(src), gdst;
-		cv::Mat dst_cpu;
-		cv::pyrDown(src, dst_cpu);
-		cv::ocl::pyrDown(gsrc, gdst);
+	double totalgputick=0;
+	double totalgputick_kernel=0;
+	double t1=0;
+	double t2=0;
 
-        cv::Mat dst;
-        gdst.download(dst);
-		char s[1024]={0};
+	for(int j = 0; j < LOOP_TIMES+1; j ++)
+	{
 
-		EXPECT_MAT_NEAR(dst, dst_cpu, dst.depth() == CV_32F ? 1e-4f : 1.0f, s);
+		t1 = (double)cvGetTickCount();//gpu start1
 
-		Cleanup();
-    }
+        cv::ocl::oclMat d_src(src);		
+
+		t2=(double)cvGetTickCount();//kernel
+		cv::ocl::columnSum(d_src,d_dst);
+		t2 = (double)cvGetTickCount() - t2;//kernel
+
+		cv::Mat cpu_dst;
+		d_dst.download (cpu_dst);//download
+
+		t1 = (double)cvGetTickCount() - t1;//gpu end1
+
+		if(j == 0)
+			continue;
+
+		totalgputick=t1+totalgputick;
+		totalgputick_kernel=t2+totalgputick_kernel;	
+
+	}
+
+	cout << "average gpu runtime is  " << totalgputick/((double)cvGetTickFrequency()* LOOP_TIMES *1000.) << "ms" << endl;
+	cout << "average gpu runtime without data transfer is  " << totalgputick_kernel/((double)cvGetTickFrequency()* LOOP_TIMES *1000.) << "ms" << endl;
+
+
+
 }
 
-INSTANTIATE_TEST_CASE_P(GPU_ImgProc, PyrDown, Combine(
-                            Values(CV_8U, CV_32F), Values(1, 3, 4)));
 
 
-#endif // HAVE_OPENCL
+#endif 

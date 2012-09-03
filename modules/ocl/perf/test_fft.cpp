@@ -15,7 +15,7 @@
 // Third party copyrights are property of their respective owners.
 //
 // @Authors
-//    Chunpeng Zhang, ***REDACTED-EMAIL***
+//    Fangfangbai, ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -43,51 +43,84 @@
 //
 //M*/
 
-#include <iomanip>
 #include "precomp.hpp"
-
-using namespace cv;
-using namespace cv::ocl;
 using namespace std;
-
-
-#if !defined(HAVE_OPENCL)
-
-void cv::ocl::columnSum(const oclMat& src,oclMat& dst){ throw_nogpu(); }
-
-#else /*!HAVE_OPENCL */
-
-namespace cv 
-{ 
-	namespace ocl
-	{
-		extern const char* imgproc_columnsum;
-	}
-}
-
-void cv::ocl::columnSum(const oclMat& src,oclMat& dst)
+#ifdef HAVE_CLAMDFFT
+////////////////////////////////////////////////////////////////////////////
+// Dft
+PARAM_TEST_CASE(Dft, cv::Size, bool) 
 {
-	CV_Assert(src.type() == CV_32FC1);
+	cv::Size dft_size;
+	bool	 dft_rows;
+	vector<cv::ocl::Info> info;
+	virtual void SetUp()
+	{
+		dft_size = GET_PARAM(0);
+		dft_rows = GET_PARAM(1);
+		cv::ocl::getDevice(info);
+	}
+};
 
-	dst.create(src.size(), src.type());
+TEST_P(Dft, C2C)
+{
+	cv::Mat a = randomMat(dft_size, CV_32FC2, 0.0, 10.0);
+	int flags = 0;
+	flags |= dft_rows ? cv::DFT_ROWS : 0;
 
-	Context *clCxt = src.clCxt;                                        
-		       
-	const std::string kernelName = "columnSum";
-		
-	std::vector< pair<size_t, const void *> > args;
+	cv::ocl::oclMat d_b;
 
-	args.push_back( make_pair( sizeof(cl_mem), (void *)&src.data));		
-	args.push_back( make_pair( sizeof(cl_mem), (void *)&dst.data));			
-	args.push_back( make_pair( sizeof(cl_int), (void *)&src.cols));		
-	args.push_back( make_pair( sizeof(cl_int), (void *)&src.rows));			
-	args.push_back( make_pair( sizeof(cl_int), (void *)&src.step));		
-	args.push_back( make_pair( sizeof(cl_int), (void *)&dst.step));		
+	double totalgputick=0;
+	double totalgputick_kernel=0;
+	double t1=0;
+	double t2=0;
 
-	size_t globalThreads[3] = {dst.cols, dst.rows, 1};					
-	size_t localThreads[3]  = {16, 16, 1};		
+	for(int j = 0; j < LOOP_TIMES+1; j ++)
+	{
 
-	openCLExecuteKernel(clCxt, &imgproc_columnsum, kernelName, globalThreads, localThreads, args, src.channels(), src.depth());
+		t1 = (double)cvGetTickCount();//gpu start1
 
+		cv::ocl::oclMat ga=cv::ocl::oclMat(a);//upload
+
+		t2=(double)cvGetTickCount();//kernel
+		cv::ocl::dft(ga, d_b, a.size(), flags);
+		t2 = (double)cvGetTickCount() - t2;//kernel
+
+		cv::Mat cpu_dst;
+		d_b.download (cpu_dst);//download
+
+		t1 = (double)cvGetTickCount() - t1;//gpu end1
+
+		if(j == 0)
+			continue;
+
+		totalgputick=t1+totalgputick;	
+		totalgputick_kernel=t2+totalgputick_kernel;	
+
+	}
+
+	cout << "average gpu runtime is  " << totalgputick/((double)cvGetTickFrequency()* LOOP_TIMES *1000.) << "ms" << endl;
+	cout << "average gpu runtime without data transfer is  " << totalgputick_kernel/((double)cvGetTickFrequency()* LOOP_TIMES *1000.) << "ms" << endl;
 }
-#endif 
+
+
+
+TEST_P(Dft, R2CthenC2R)
+{
+	cv::Mat a = randomMat(dft_size, CV_32FC1, 0.0, 10.0);
+
+	int flags = 0;
+	//flags |= dft_rows ? cv::DFT_ROWS : 0; // not supported yet
+
+	cv::ocl::oclMat d_b, d_c;
+
+	cv::ocl::dft(cv::ocl::oclMat(a), d_b, a.size(), flags);
+	cv::ocl::dft(d_b, d_c, a.size(), flags + cv::DFT_INVERSE + cv::DFT_REAL_OUTPUT);
+
+	EXPECT_MAT_NEAR(a, d_c, a.size().area() * 1e-4, "");
+}
+
+//INSTANTIATE_TEST_CASE_P(ocl_DFT, Dft, testing::Combine(
+//						testing::Values(cv::Size(1280, 1024), cv::Size(1920, 1080),cv::Size(1800, 1500)),
+//						testing::Values(false, true)));
+
+#endif // HAVE_CLAMDFFT

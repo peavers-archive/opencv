@@ -15,8 +15,7 @@
 // Third party copyrights are property of their respective owners.
 //
 // @Authors
-//    Chunpeng Zhang, ***REDACTED-EMAIL***
-//
+//    Fangfang Bai, ***REDACTED-EMAIL***
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
 //
@@ -43,51 +42,72 @@
 //
 //M*/
 
-#include <iomanip>
+
 #include "precomp.hpp"
-
-using namespace cv;
-using namespace cv::ocl;
 using namespace std;
-
-
-#if !defined(HAVE_OPENCL)
-
-void cv::ocl::columnSum(const oclMat& src,oclMat& dst){ throw_nogpu(); }
-
-#else /*!HAVE_OPENCL */
-
-namespace cv 
-{ 
-	namespace ocl
-	{
-		extern const char* imgproc_columnsum;
-	}
-}
-
-void cv::ocl::columnSum(const oclMat& src,oclMat& dst)
+#ifdef HAVE_CLAMDBLAS
+////////////////////////////////////////////////////////////////////////////
+// GEMM
+PARAM_TEST_CASE(Gemm, int, cv::Size, int) 
 {
-	CV_Assert(src.type() == CV_32FC1);
+	int      type;
+	cv::Size mat_size;
+	int		 flags;
+	vector<cv::ocl::Info> info;
+	virtual void SetUp()
+	{
+		type     = GET_PARAM(0);
+		mat_size = GET_PARAM(1);
+		flags    = GET_PARAM(2);
 
-	dst.create(src.size(), src.type());
+		cv::ocl::getDevice(info);
+	}
+};
 
-	Context *clCxt = src.clCxt;                                        
-		       
-	const std::string kernelName = "columnSum";
-		
-	std::vector< pair<size_t, const void *> > args;
+TEST_P(Gemm, Performance)
+{
+	cv::Mat a = randomMat(mat_size, type, 0.0, 10.0);
+	cv::Mat b = randomMat(mat_size, type, 0.0, 10.0);
+	cv::Mat c = randomMat(mat_size, type, 0.0, 10.0);
+	cv::ocl::oclMat ocl_dst;	
 
-	args.push_back( make_pair( sizeof(cl_mem), (void *)&src.data));		
-	args.push_back( make_pair( sizeof(cl_mem), (void *)&dst.data));			
-	args.push_back( make_pair( sizeof(cl_int), (void *)&src.cols));		
-	args.push_back( make_pair( sizeof(cl_int), (void *)&src.rows));			
-	args.push_back( make_pair( sizeof(cl_int), (void *)&src.step));		
-	args.push_back( make_pair( sizeof(cl_int), (void *)&dst.step));		
+	double totalgputick=0;
+	double totalgputick_kernel=0;
+	double t1=0;
+	double t2=0;
 
-	size_t globalThreads[3] = {dst.cols, dst.rows, 1};					
-	size_t localThreads[3]  = {16, 16, 1};		
+	for(int j = 0; j < LOOP_TIMES+1; j ++)
+	{
 
-	openCLExecuteKernel(clCxt, &imgproc_columnsum, kernelName, globalThreads, localThreads, args, src.channels(), src.depth());
+		t1 = (double)cvGetTickCount();//gpu start1
 
+		cv::ocl::oclMat ga = cv::ocl::oclMat(a);//upload
+		cv::ocl::oclMat gb = cv::ocl::oclMat(b);//upload
+		cv::ocl::oclMat gc = cv::ocl::oclMat(c);//upload
+
+		t2=(double)cvGetTickCount();//kernel
+		cv::ocl::gemm(ga, gb, 1.0,gc, 1.0, ocl_dst, flags);
+		t2 = (double)cvGetTickCount() - t2;//kernel
+
+		cv::Mat cpu_dst;
+		ocl_dst.download (cpu_dst);//download
+
+		t1 = (double)cvGetTickCount() - t1;//gpu end
+
+		if(j == 0)
+			continue;
+
+		totalgputick=t1+totalgputick;	
+		totalgputick_kernel=t2+totalgputick_kernel;	
+
+	}
+	cout << "average gpu runtime is  " << totalgputick/((double)cvGetTickFrequency()* LOOP_TIMES *1000.) << "ms" << endl;
+    cout << "average gpu runtime without data transfer is  " << totalgputick_kernel/((double)cvGetTickFrequency()* LOOP_TIMES *1000.) << "ms" << endl;
 }
-#endif 
+
+
+INSTANTIATE_TEST_CASE_P(ocl_gemm, Gemm, testing::Combine(
+						testing::Values(CV_32FC1, CV_32FC2/* , CV_64FC1, CV_64FC2*/),
+						testing::Values(cv::Size(512, 512), cv::Size(1024, 1024)),
+						testing::Values(0, cv::GEMM_1_T, cv::GEMM_2_T, cv::GEMM_1_T + cv::GEMM_2_T)));
+#endif
