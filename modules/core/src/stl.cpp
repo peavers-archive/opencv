@@ -7,11 +7,12 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
 // Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
-// Copyright (C) 2009-2011, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -40,50 +41,29 @@
 //
 //M*/
 
-#ifndef __OPENCV_VIDEOSTAB_FRAME_SOURCE_HPP__
-#define __OPENCV_VIDEOSTAB_FRAME_SOURCE_HPP__
 
-#include <vector>
-#include "opencv2/core.hpp"
+#include "precomp.hpp"
 
-namespace cv
+char* cv::String::allocate(size_t len)
 {
-namespace videostab
+    size_t totalsize = alignSize(len + 1, (int)sizeof(int));
+    int* data = (int*)cv::fastMalloc(totalsize + sizeof(int));
+    data[0] = 1;
+    cstr_ = (char*)(data + 1);
+    len_ = len;
+    cstr_[len] = 0;
+    return cstr_;
+}
+
+
+void cv::String::deallocate()
 {
+    int* data = (int*)cstr_;
+    len_ = 0;
+    cstr_ = 0;
 
-class CV_EXPORTS IFrameSource
-{
-public:
-    virtual ~IFrameSource() {}
-    virtual void reset() = 0;
-    virtual Mat nextFrame() = 0;
-};
-
-class CV_EXPORTS NullFrameSource : public IFrameSource
-{
-public:
-    virtual void reset() {}
-    virtual Mat nextFrame() { return Mat(); }
-};
-
-class CV_EXPORTS VideoFileSource : public IFrameSource
-{
-public:
-    VideoFileSource(const String &path, bool volatileFrame = false);
-
-    virtual void reset();
-    virtual Mat nextFrame();
-
-    int width();
-    int height();
-    int count();
-    double fps();
-
-private:
-    Ptr<IFrameSource> impl;
-};
-
-} // namespace videostab
-} // namespace cv
-
-#endif
+    if(data && 1 == CV_XADD(data-1, -1))
+    {
+        cv::fastFree(data-1);
+    }
+}
