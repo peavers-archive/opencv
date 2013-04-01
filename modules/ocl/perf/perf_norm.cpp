@@ -44,45 +44,41 @@
 //M*/
 #include "precomp.hpp"
 
-///////////// HOG////////////////////////
-TEST(HOG)
+///////////// norm////////////////////////
+TEST(norm)
 {
-    Mat src = imread(abspath("road.png"), cv::IMREAD_GRAYSCALE);
+    Mat src, buf;
+    ocl::oclMat d_src, d_buf;
 
-    if (src.empty())
+
+    for (int size = Min_Size; size <= Max_Size; size *= Multiple)
     {
-        throw runtime_error("can't open road.png");
+        SUBTEST << size << 'x' << size << "; CV_8UC1; NORM_INF";
+
+        gen(src, size, size, CV_8UC1, Scalar::all(0), Scalar::all(1));
+        gen(buf, size, size, CV_8UC1, Scalar::all(0), Scalar::all(1));
+
+        norm(src, NORM_INF);
+
+        CPU_ON;
+        norm(src, NORM_INF);
+        CPU_OFF;
+
+        d_src.upload(src);
+        d_buf.upload(buf);
+
+        WARMUP_ON;
+        ocl::norm(d_src, d_buf, NORM_INF);
+        WARMUP_OFF;
+
+        GPU_ON;
+        ocl::norm(d_src, d_buf, NORM_INF);
+         ;
+        GPU_OFF;
+
+        GPU_FULL_ON;
+        d_src.upload(src);
+        ocl::norm(d_src, d_buf, NORM_INF);
+        GPU_FULL_OFF;
     }
-
-
-    cv::HOGDescriptor hog;
-    hog.setSVMDetector(hog.getDefaultPeopleDetector());
-    std::vector<cv::Rect> found_locations;
-
-    SUBTEST << 768 << 'x' << 576 << "; road.png";
-
-    hog.detectMultiScale(src, found_locations);
-
-    CPU_ON;
-    hog.detectMultiScale(src, found_locations);
-    CPU_OFF;
-
-    cv::ocl::HOGDescriptor ocl_hog;
-    ocl_hog.setSVMDetector(ocl_hog.getDefaultPeopleDetector());
-    ocl::oclMat d_src;
-    d_src.upload(src);
-
-    WARMUP_ON;
-    ocl_hog.detectMultiScale(d_src, found_locations);
-    WARMUP_OFF;
-
-    GPU_ON;
-    ocl_hog.detectMultiScale(d_src, found_locations);
-     ;
-    GPU_OFF;
-
-    GPU_FULL_ON;
-    d_src.upload(src);
-    ocl_hog.detectMultiScale(d_src, found_locations);
-    GPU_FULL_OFF;
 }

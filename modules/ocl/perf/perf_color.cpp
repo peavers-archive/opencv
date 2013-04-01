@@ -44,45 +44,48 @@
 //M*/
 #include "precomp.hpp"
 
-///////////// HOG////////////////////////
-TEST(HOG)
+///////////// cvtColor////////////////////////
+TEST(cvtColor)
 {
-    Mat src = imread(abspath("road.png"), cv::IMREAD_GRAYSCALE);
+    Mat src, dst;
+    ocl::oclMat d_src, d_dst;
 
-    if (src.empty())
+    int all_type[] = {CV_8UC4};
+    std::string type_name[] = {"CV_8UC4"};
+
+    for (int size = Min_Size; size <= Max_Size; size *= Multiple)
     {
-        throw runtime_error("can't open road.png");
+        for (size_t j = 0; j < sizeof(all_type) / sizeof(int); j++)
+        {
+            gen(src, size, size, all_type[j], 0, 256);
+            SUBTEST << size << "x" << size << "; " << type_name[j] << " ; CV_RGBA2GRAY";
+
+            cvtColor(src, dst, CV_RGBA2GRAY, 4);
+
+            CPU_ON;
+            cvtColor(src, dst, CV_RGBA2GRAY, 4);
+            CPU_OFF;
+
+            d_src.upload(src);
+
+            WARMUP_ON;
+            ocl::cvtColor(d_src, d_dst, CV_RGBA2GRAY, 4);
+            WARMUP_OFF;
+
+            GPU_ON;
+            ocl::cvtColor(d_src, d_dst, CV_RGBA2GRAY, 4);
+             ;
+            GPU_OFF;
+
+            GPU_FULL_ON;
+            d_src.upload(src);
+            ocl::cvtColor(d_src, d_dst, CV_RGBA2GRAY, 4);
+            d_dst.download(dst);
+            GPU_FULL_OFF;
+        }
+
+
     }
 
 
-    cv::HOGDescriptor hog;
-    hog.setSVMDetector(hog.getDefaultPeopleDetector());
-    std::vector<cv::Rect> found_locations;
-
-    SUBTEST << 768 << 'x' << 576 << "; road.png";
-
-    hog.detectMultiScale(src, found_locations);
-
-    CPU_ON;
-    hog.detectMultiScale(src, found_locations);
-    CPU_OFF;
-
-    cv::ocl::HOGDescriptor ocl_hog;
-    ocl_hog.setSVMDetector(ocl_hog.getDefaultPeopleDetector());
-    ocl::oclMat d_src;
-    d_src.upload(src);
-
-    WARMUP_ON;
-    ocl_hog.detectMultiScale(d_src, found_locations);
-    WARMUP_OFF;
-
-    GPU_ON;
-    ocl_hog.detectMultiScale(d_src, found_locations);
-     ;
-    GPU_OFF;
-
-    GPU_FULL_ON;
-    d_src.upload(src);
-    ocl_hog.detectMultiScale(d_src, found_locations);
-    GPU_FULL_OFF;
 }
