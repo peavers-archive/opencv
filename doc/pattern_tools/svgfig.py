@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # svgfig.py copyright (C) 2008 Jim Pivarski <***REDACTED-EMAIL***>
 #
 # This program is free software; you can redistribute it and/or
