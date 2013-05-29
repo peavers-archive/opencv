@@ -45,6 +45,49 @@
 //M*/
 #include "precomp.hpp"
 
+///////////// pyrDown //////////////////////
+PERFTEST(pyrDown)
+{
+    Mat src, dst, ocl_dst;
+    int all_type[] = {CV_8UC1, CV_8UC4};
+    std::string type_name[] = {"CV_8UC1", "CV_8UC4"};
+
+    for (int size = Min_Size; size <= Max_Size; size *= Multiple)
+    {
+        for (size_t j = 0; j < sizeof(all_type) / sizeof(int); j++)
+        {
+            SUBTEST << size << 'x' << size << "; " << type_name[j] ;
+
+            gen(src, size, size, all_type[j], 0, 256);
+
+            pyrDown(src, dst);
+
+            CPU_ON;
+            pyrDown(src, dst);
+            CPU_OFF;
+
+            ocl::oclMat d_src(src);
+            ocl::oclMat d_dst;
+
+            WARMUP_ON;
+            ocl::pyrDown(d_src, d_dst);
+            WARMUP_OFF;
+
+            GPU_ON;
+            ocl::pyrDown(d_src, d_dst);
+            GPU_OFF;
+
+            GPU_FULL_ON;
+            d_src.upload(src);
+            ocl::pyrDown(d_src, d_dst);
+            d_dst.download(ocl_dst);
+            GPU_FULL_OFF;
+
+            TestSystem::instance().ExpectedMatNear(dst, ocl_dst, dst.depth() == CV_32F ? 1e-4f : 1.0f);
+        }
+    }
+}
+
 ///////////// pyrUp ////////////////////////
 PERFTEST(pyrUp)
 {
