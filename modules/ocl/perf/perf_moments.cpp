@@ -44,45 +44,49 @@
 //
 //M*/
 #include "precomp.hpp"
-
-///////////// columnSum////////////////////////
-PERFTEST(columnSum)
+///////////// Moments ////////////////////////
+PERFTEST(Moments)
 {
-    Mat src, dst, ocl_dst;
-    ocl::oclMat d_src, d_dst;
+    Mat src;
+    bool binaryImage = 0;
+
+    int all_type[] = {CV_8UC1, CV_16SC1, CV_32FC1, CV_64FC1};
+    std::string type_name[] = {"CV_8UC1", "CV_16SC1", "CV_32FC1", "CV_64FC1"};
 
     for (int size = Min_Size; size <= Max_Size; size *= Multiple)
     {
-        SUBTEST << size << 'x' << size << "; CV_32FC1";
+        for (size_t j = 0; j < sizeof(all_type) / sizeof(int); j++)
+        {
+            SUBTEST << size << 'x' << size << "; " << type_name[j];
 
-        gen(src, size, size, CV_32FC1, 0, 256);
+            gen(src, size, size, all_type[j], 0, 256);
 
-        CPU_ON;
-        dst.create(src.size(), src.type());
-        for (int j = 0; j < src.cols; j++)
-            dst.at<float>(0, j) = src.at<float>(0, j);
+            cv::Moments CvMom = moments(src, binaryImage);
 
-        for (int i = 1; i < src.rows; ++i)
-            for (int j = 0; j < src.cols; ++j)
-                dst.at<float>(i, j) = dst.at<float>(i - 1 , j) + src.at<float>(i , j);
-        CPU_OFF;
+            CPU_ON;
+            moments(src, binaryImage);
+            CPU_OFF;
 
-        d_src.upload(src);
+            cv::Moments oclMom;
+            WARMUP_ON;
+            oclMom = ocl::ocl_moments(src, binaryImage);
+            WARMUP_OFF;
 
-        WARMUP_ON;
-        ocl::columnSum(d_src, d_dst);
-        WARMUP_OFF;
+            Mat gpu_dst, cpu_dst;
+            HuMoments(CvMom, cpu_dst);
+            HuMoments(oclMom, gpu_dst);
 
-        GPU_ON;
-        ocl::columnSum(d_src, d_dst);
-        GPU_OFF;
+            GPU_ON;
+            ocl::ocl_moments(src, binaryImage);
+            GPU_OFF;
 
-        GPU_FULL_ON;
-        d_src.upload(src);
-        ocl::columnSum(d_src, d_dst);
-        d_dst.download(ocl_dst);
-        GPU_FULL_OFF;
+            GPU_FULL_ON;
+            ocl::ocl_moments(src, binaryImage);
+            GPU_FULL_OFF;
 
-        TestSystem::instance().ExpectedMatNear(dst, ocl_dst, 5e-1);
+            TestSystem::instance().ExpectedMatNear(gpu_dst, cpu_dst, .5);
+
+        }
+
     }
 }
