@@ -7,16 +7,13 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
+// Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//    Zhang Chunpeng ***REDACTED-EMAIL***
-//    Yao Wang ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -26,7 +23,7 @@
 //
 //   * Redistribution's in binary form must reproduce the above copyright notice,
 //     this list of conditions and the following disclaimer in the documentation
-//     and/or other oclMaterials provided with the distribution.
+//     and/or other materials provided with the distribution.
 //
 //   * The name of the copyright holders may not be used to endorse or promote products
 //     derived from this software without specific prior written permission.
@@ -44,47 +41,47 @@
 //
 //M*/
 
-#include "precomp.hpp"
+#ifndef __CUVID_VIDEO_SOURCE_HPP__
+#define __CUVID_VIDEO_SOURCE_HPP__
 
-#ifdef HAVE_OPENCL
+#include <nvcuvid.h>
 
-using namespace cv;
-using namespace cvtest;
-using namespace testing;
-using namespace std;
+#include "opencv2/core/private.gpu.hpp"
+#include "opencv2/gpucodec.hpp"
+#include "video_source.hpp"
 
-PARAM_TEST_CASE(PyrUp, MatType, int)
+namespace cv { namespace gpucodec { namespace detail
 {
-    int type;
-    int channels;
 
-    virtual void SetUp()
-    {
-        type = GET_PARAM(0);
-        channels = GET_PARAM(1);
-    }
+class CuvidVideoSource : public VideoSource
+{
+public:
+    explicit CuvidVideoSource(const String& fname);
+    ~CuvidVideoSource();
+
+    FormatInfo format() const;
+    void start();
+    void stop();
+    bool isStarted() const;
+    bool hasError() const;
+
+private:
+    // Callback for handling packages of demuxed video data.
+    //
+    // Parameters:
+    //      pUserData - Pointer to user data. We must pass a pointer to a
+    //          VideoSourceData struct here, that contains a valid CUvideoparser
+    //          and FrameQueue.
+    //      pPacket - video-source data packet.
+    //
+    // NOTE: called from a different thread that doesn't not have a cuda context
+    //
+    static int CUDAAPI HandleVideoData(void* pUserData, CUVIDSOURCEDATAPACKET* pPacket);
+
+    CUvideosource videoSource_;
+    FormatInfo format_;
 };
 
-TEST_P(PyrUp, Accuracy)
-{
-    for(int j = 0; j < LOOP_TIMES; j++)
-    {
-        Size size(MWIDTH, MHEIGHT);
-        Mat src = randomMat(size, CV_MAKETYPE(type, channels));
-        Mat dst_gold;
-        pyrUp(src, dst_gold);
-        ocl::oclMat dst;
-        ocl::oclMat srcMat(src);
-        ocl::pyrUp(srcMat, dst);
+}}}
 
-        EXPECT_MAT_NEAR(dst_gold, Mat(dst), (type == CV_32F ? 1e-4f : 1.0));
-    }
-
-}
-
-
-INSTANTIATE_TEST_CASE_P(OCL_ImgProc, PyrUp, testing::Combine(
-                            Values(CV_8U, CV_32F), Values(1, 3, 4)));
-
-
-#endif // HAVE_OPENCL
+#endif // __CUVID_VIDEO_SOURCE_HPP__

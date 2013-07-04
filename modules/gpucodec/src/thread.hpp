@@ -7,11 +7,12 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
 // Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
 // Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -40,58 +41,34 @@
 //
 //M*/
 
-#ifndef __FRAME_QUEUE_H__
-#define __FRAME_QUEUE_H__
+#ifndef __THREAD_WRAPPERS_HPP__
+#define __THREAD_WRAPPERS_HPP__
 
-#include "opencv2/core/utility.hpp"
-#include "opencv2/core/private.gpu.hpp"
+#include "opencv2/core.hpp"
 
-#include <nvcuvid.h>
+namespace cv { namespace gpucodec { namespace detail {
 
-namespace cv { namespace gpu { namespace detail
-{
-
-class FrameQueue
+class Thread
 {
 public:
-    static const int MaximumSize = 20; // MAX_FRM_CNT;
+    typedef void (*Func)(void* userData);
 
-    FrameQueue();
+    explicit Thread(Func func, void* userData = 0);
 
-    void endDecode() { endOfDecode_ = true; }
-    bool isEndOfDecode() const { return endOfDecode_ != 0;}
+    void wait();
 
-    // Spins until frame becomes available or decoding gets canceled.
-    // If the requested frame is available the method returns true.
-    // If decoding was interupted before the requested frame becomes
-    // available, the method returns false.
-    bool waitUntilFrameAvailable(int pictureIndex);
+    static void sleep(int ms);
 
-    void enqueue(const CUVIDPARSERDISPINFO* picParams);
-
-    // Deque the next frame.
-    // Parameters:
-    //      displayInfo - New frame info gets placed into this object.
-    // Returns:
-    //      true, if a new frame was returned,
-    //      false, if the queue was empty and no new frame could be returned.
-    bool dequeue(CUVIDPARSERDISPINFO& displayInfo);
-
-    void releaseFrame(const CUVIDPARSERDISPINFO& picParams) { isFrameInUse_[picParams.picture_index] = false; }
+    class Impl;
 
 private:
-    bool isInUse(int pictureIndex) const { return isFrameInUse_[pictureIndex] != 0; }
-
-    Mutex mtx_;
-
-    volatile int isFrameInUse_[MaximumSize];
-    volatile int endOfDecode_;
-
-    int framesInQueue_;
-    int readPosition_;
-    CUVIDPARSERDISPINFO displayQueue_[MaximumSize];
+    cv::Ptr<Impl> impl_;
 };
 
 }}}
 
-#endif // __FRAME_QUEUE_H__
+namespace cv {
+    template <> void Ptr<cv::gpucodec::detail::Thread::Impl>::delete_obj();
+}
+
+#endif // __THREAD_WRAPPERS_HPP__

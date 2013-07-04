@@ -7,11 +7,12 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
 // Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
 // Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -40,55 +41,81 @@
 //
 //M*/
 
-#ifndef __VIDEO_PARSER_H__
-#define __VIDEO_PARSER_H__
+#include "precomp.hpp"
 
-#include "opencv2/core/private.gpu.hpp"
-#include "opencv2/gpucodec.hpp"
-#include "frame_queue.h"
-#include "video_decoder.h"
+#ifdef HAVE_NVCUVID
 
-#include <nvcuvid.h>
+using namespace cv;
+using namespace cv::gpucodec;
+using namespace cv::gpucodec::detail;
 
-namespace cv { namespace gpu { namespace detail
+bool cv::gpucodec::detail::VideoSource::parseVideoData(const unsigned char* data, size_t size, bool endOfStream)
 {
+    return videoParser_->parseVideoData(data, size, endOfStream);
+}
 
-class VideoParser
+cv::gpucodec::detail::RawVideoSourceWrapper::RawVideoSourceWrapper(const Ptr<RawVideoSource>& source) :
+    source_(source)
 {
-public:
-    VideoParser(VideoDecoder* videoDecoder, FrameQueue* frameQueue);
+    CV_Assert( !source_.empty() );
+}
 
-    ~VideoParser()
+cv::gpucodec::FormatInfo cv::gpucodec::detail::RawVideoSourceWrapper::format() const
+{
+    return source_->format();
+}
+
+void cv::gpucodec::detail::RawVideoSourceWrapper::start()
+{
+    stop_ = false;
+    hasError_ = false;
+    thread_ = new Thread(readLoop, this);
+}
+
+void cv::gpucodec::detail::RawVideoSourceWrapper::stop()
+{
+    stop_ = true;
+    thread_->wait();
+    thread_.release();
+}
+
+bool cv::gpucodec::detail::RawVideoSourceWrapper::isStarted() const
+{
+    return !stop_;
+}
+
+bool cv::gpucodec::detail::RawVideoSourceWrapper::hasError() const
+{
+    return hasError_;
+}
+
+void cv::gpucodec::detail::RawVideoSourceWrapper::readLoop(void* userData)
+{
+    RawVideoSourceWrapper* thiz = static_cast<RawVideoSourceWrapper*>(userData);
+
+    for (;;)
     {
-        cuvidDestroyVideoParser(parser_);
+        unsigned char* data;
+        int size;
+        bool endOfFile;
+
+        if (!thiz->source_->getNextPacket(&data, &size, &endOfFile))
+        {
+            thiz->hasError_ = !endOfFile;
+            break;
+        }
+
+        if (!thiz->parseVideoData(data, size))
+        {
+            thiz->hasError_ = true;
+            break;
+        }
+
+        if (thiz->stop_)
+            break;
     }
 
-    bool parseVideoData(const unsigned char* data, size_t size, bool endOfStream);
+    thiz->parseVideoData(0, 0, true);
+}
 
-    bool hasError() const { return hasError_; }
-
-private:
-    VideoDecoder* videoDecoder_;
-    FrameQueue* frameQueue_;
-    CUvideoparser parser_;
-    int unparsedPackets_;
-    volatile bool hasError_;
-
-    // Called when the decoder encounters a video format change (or initial sequence header)
-    // This particular implementation of the callback returns 0 in case the video format changes
-    // to something different than the original format. Returning 0 causes a stop of the app.
-    static int CUDAAPI HandleVideoSequence(void* pUserData, CUVIDEOFORMAT* pFormat);
-
-    // Called by the video parser to decode a single picture
-    // Since the parser will deliver data as fast as it can, we need to make sure that the picture
-    // index we're attempting to use for decode is no longer used for display
-    static int CUDAAPI HandlePictureDecode(void* pUserData, CUVIDPICPARAMS* pPicParams);
-
-    // Called by the video parser to display a video frame (in the case of field pictures, there may be
-    // 2 decode calls per 1 display call, since two fields make up one frame)
-    static int CUDAAPI HandlePictureDisplay(void* pUserData, CUVIDPARSERDISPINFO* pPicParams);
-};
-
-}}}
-
-#endif // __VIDEO_PARSER_H__
+#endif // HAVE_NVCUVID

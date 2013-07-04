@@ -7,11 +7,12 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
 // Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
 // Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -40,43 +41,58 @@
 //
 //M*/
 
-#ifndef __FFMPEG_VIDEO_SOURCE_H__
-#define __FFMPEG_VIDEO_SOURCE_H__
+#ifndef __FRAME_QUEUE_HPP__
+#define __FRAME_QUEUE_HPP__
 
-#include "opencv2/gpucodec.hpp"
-#include "thread.h"
+#include "opencv2/core/utility.hpp"
+#include "opencv2/core/private.gpu.hpp"
 
-struct InputMediaStream_FFMPEG;
+#include <nvcuvid.h>
 
-namespace cv { namespace gpu { namespace detail {
+namespace cv { namespace gpucodec { namespace detail
+{
 
-class FFmpegVideoSource : public VideoReader_GPU::VideoSource
+class FrameQueue
 {
 public:
-    FFmpegVideoSource(const String& fname);
+    static const int MaximumSize = 20; // MAX_FRM_CNT;
 
-    VideoReader_GPU::FormatInfo format() const;
-    void start();
-    void stop();
-    bool isStarted() const;
-    bool hasError() const;
+    FrameQueue();
+
+    void endDecode() { endOfDecode_ = true; }
+    bool isEndOfDecode() const { return endOfDecode_ != 0;}
+
+    // Spins until frame becomes available or decoding gets canceled.
+    // If the requested frame is available the method returns true.
+    // If decoding was interupted before the requested frame becomes
+    // available, the method returns false.
+    bool waitUntilFrameAvailable(int pictureIndex);
+
+    void enqueue(const CUVIDPARSERDISPINFO* picParams);
+
+    // Deque the next frame.
+    // Parameters:
+    //      displayInfo - New frame info gets placed into this object.
+    // Returns:
+    //      true, if a new frame was returned,
+    //      false, if the queue was empty and no new frame could be returned.
+    bool dequeue(CUVIDPARSERDISPINFO& displayInfo);
+
+    void releaseFrame(const CUVIDPARSERDISPINFO& picParams) { isFrameInUse_[picParams.picture_index] = false; }
 
 private:
-    VideoReader_GPU::FormatInfo format_;
+    bool isInUse(int pictureIndex) const { return isFrameInUse_[pictureIndex] != 0; }
 
-    cv::Ptr<InputMediaStream_FFMPEG> stream_;
+    Mutex mtx_;
 
-    cv::Ptr<Thread> thread_;
-    volatile bool stop_;
-    volatile bool hasError_;
+    volatile int isFrameInUse_[MaximumSize];
+    volatile int endOfDecode_;
 
-    static void readLoop(void* userData);
+    int framesInQueue_;
+    int readPosition_;
+    CUVIDPARSERDISPINFO displayQueue_[MaximumSize];
 };
 
 }}}
 
-namespace cv {
-    template <> void Ptr<InputMediaStream_FFMPEG>::delete_obj();
-}
-
-#endif // __FFMPEG_VIDEO_SOURCE_H__
+#endif // __FRAME_QUEUE_HPP__

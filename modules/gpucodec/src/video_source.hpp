@@ -7,16 +7,13 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
+// Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//	   Chunpeng Zhang ***REDACTED-EMAIL***
-//
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -26,7 +23,7 @@
 //
 //   * Redistribution's in binary form must reproduce the above copyright notice,
 //     this list of conditions and the following disclaimer in the documentation
-//     and/or other oclMaterials provided with the distribution.
+//     and/or other materials provided with the distribution.
 //
 //   * The name of the copyright holders may not be used to endorse or promote products
 //     derived from this software without specific prior written permission.
@@ -44,51 +41,59 @@
 //
 //M*/
 
-#include "precomp.hpp"
-#include <iomanip>
+#ifndef __GPUCODEC_VIDEO_SOURCE_H__
+#define __GPUCODEC_VIDEO_SOURCE_H__
 
-#ifdef HAVE_OPENCL
+#include "opencv2/core/private.gpu.hpp"
+#include "opencv2/gpucodec.hpp"
+#include "thread.hpp"
 
-PARAM_TEST_CASE(ColumnSum, cv::Size)
+namespace cv { namespace gpucodec { namespace detail
 {
-    cv::Size size;
-    cv::Mat src;
 
-    virtual void SetUp()
-    {
-        size = GET_PARAM(0);
-    }
+class VideoParser;
+
+class VideoSource
+{
+public:
+    virtual ~VideoSource() {}
+
+    virtual FormatInfo format() const = 0;
+    virtual void start() = 0;
+    virtual void stop() = 0;
+    virtual bool isStarted() const = 0;
+    virtual bool hasError() const = 0;
+
+    void setVideoParser(detail::VideoParser* videoParser) { videoParser_ = videoParser; }
+
+protected:
+    bool parseVideoData(const uchar* data, size_t size, bool endOfStream = false);
+
+private:
+    detail::VideoParser* videoParser_;
 };
 
-TEST_P(ColumnSum, Accuracy)
+class RawVideoSourceWrapper : public VideoSource
 {
-    cv::Mat src = randomMat(size, CV_32FC1);
-    cv::ocl::oclMat d_dst;
-    cv::ocl::oclMat d_src(src);
+public:
+    RawVideoSourceWrapper(const Ptr<RawVideoSource>& source);
 
-    cv::ocl::columnSum(d_src, d_dst);
+    FormatInfo format() const;
+    void start();
+    void stop();
+    bool isStarted() const;
+    bool hasError() const;
 
-    cv::Mat dst(d_dst);
+private:
+    Ptr<RawVideoSource> source_;
 
-    for (int j = 0; j < src.cols; ++j)
-    {
-        float gold = src.at<float>(0, j);
-        float res = dst.at<float>(0, j);
-        ASSERT_NEAR(res, gold, 1e-5);
-    }
+    Ptr<Thread> thread_;
+    volatile bool stop_;
+    volatile bool hasError_;
 
-    for (int i = 1; i < src.rows; ++i)
-    {
-        for (int j = 0; j < src.cols; ++j)
-        {
-            float gold = src.at<float>(i, j) += src.at<float>(i - 1, j);
-            float res = dst.at<float>(i, j);
-            ASSERT_NEAR(res, gold, 1e-5);
-        }
-    }
-}
+    static void readLoop(void* userData);
+};
 
-INSTANTIATE_TEST_CASE_P(OCL_ImgProc, ColumnSum, DIFFERENT_SIZES);
+}}}
 
-
-#endif
+#endif // __GPUCODEC_VIDEO_SOURCE_H__
