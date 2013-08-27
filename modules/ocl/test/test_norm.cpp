@@ -7,16 +7,11 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                        Intel License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2000, Intel Corporation, all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//    Fangfang Bai, ***REDACTED-EMAIL***
-//    Jin Ma,       ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -26,12 +21,12 @@
 //
 //   * Redistribution's in binary form must reproduce the above copyright notice,
 //     this list of conditions and the following disclaimer in the documentation
-//     and/or other oclMaterials provided with the distribution.
+//     and/or other materials provided with the distribution.
 //
-//   * The name of the copyright holders may not be used to endorse or promote products
+//   * The name of Intel Corporation may not be used to endorse or promote products
 //     derived from this software without specific prior written permission.
 //
-// This software is provided by the copyright holders and contributors as is and
+// This software is provided by the copyright holders and contributors "as is" and
 // any express or implied warranties, including, but not limited to, the implied
 // warranties of merchantability and fitness for a particular purpose are disclaimed.
 // In no event shall the Intel Corporation or contributors be liable for any direct,
@@ -43,39 +38,26 @@
 // the use of this software, even if advised of the possibility of such damage.
 //
 //M*/
-#include "perf_precomp.hpp"
 
-using namespace perf;
+#include "test_precomp.hpp"
 
-///////////// HOG////////////////////////
+typedef ::testing::TestWithParam<cv::Size> normFixture;
 
-PERF_TEST(HOGFixture, HOG)
+TEST_P(normFixture, DISABLED_accuracy)
 {
-    Mat src = imread(getDataPath("gpu/hog/road.png"), cv::IMREAD_GRAYSCALE);
-    ASSERT_TRUE(!src.empty()) << "can't open input image road.png";
+    const cv::Size srcSize = GetParam();
 
-    vector<cv::Rect> found_locations;
-    declare.in(src).time(5);
+    cv::Mat src1(srcSize, CV_8UC1), src2(srcSize, CV_8UC1);
+    cv::randu(src1, 0, 2);
+    cv::randu(src2, 0, 2);
 
-    if (RUN_PLAIN_IMPL)
-    {
-        HOGDescriptor hog;
-        hog.setSVMDetector(hog.getDefaultPeopleDetector());
+    cv::ocl::oclMat oclSrc1(src1), oclSrc2(src2);
 
-        TEST_CYCLE() hog.detectMultiScale(src, found_locations);
+    double value = cv::norm(src1, src2, cv::NORM_INF);
+    double oclValue = cv::ocl::norm(oclSrc1, oclSrc2, cv::NORM_INF);
 
-        SANITY_CHECK(found_locations, 1 + DBL_EPSILON);
-    }
-    else if (RUN_OCL_IMPL)
-    {
-        ocl::HOGDescriptor ocl_hog;
-        ocl_hog.setSVMDetector(ocl_hog.getDefaultPeopleDetector());
-        ocl::oclMat oclSrc(src);
-
-        TEST_CYCLE() ocl_hog.detectMultiScale(oclSrc, found_locations);
-
-        SANITY_CHECK(found_locations, 1 + DBL_EPSILON);
-    }
-    else
-        OCL_PERF_ELSE
+    ASSERT_EQ(value, oclValue);
 }
+
+INSTANTIATE_TEST_CASE_P(oclNormTest, normFixture,
+                        ::testing::Values(cv::Size(500, 500), cv::Size(1000, 1000)));
