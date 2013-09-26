@@ -15,8 +15,7 @@
 // Third party copyrights are property of their respective owners.
 //
 // @Authors
-//    Jiang Liyuan, ***REDACTED-EMAIL***
-//    Peng Xiao,    ***REDACTED-EMAIL***
+//    Jia Haipeng, ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -44,30 +43,32 @@
 //
 //M*/
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////bitwise_binary////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+#if defined (DOUBLE_SUPPORT)
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64:enable
+#elif defined (cl_amd_fp64)
+#pragma OPENCL EXTENSION cl_amd_fp64:enable
+#endif
+#endif
 
-__kernel void arithm_bitwise_binary_mask(__global uchar * src1, int src1_step, int src1_offset,
-                                    __global uchar * src2, int src2_step, int src2_offset,
-                                    __global uchar * mask, int mask_step, int mask_offset, int elemSize,
-                                    __global uchar * dst, int dst_step, int dst_offset,
-                                    int cols1, int rows)
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////addWeighted//////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+__kernel void arithm_compare(__global T * src1, int src1_step1, int src1_offset1,
+                              __global T * src2, int src2_step1, int src2_offset1,
+                              __global uchar * dst, int dst_step1, int dst_offset1,
+                              int cols1, int rows)
 {
     int x = get_global_id(0);
     int y = get_global_id(1);
 
     if (x < cols1 && y < rows)
     {
-        int mask_index = mad24(y, mask_step, mask_offset + (x / elemSize));
+        int src1_index = mad24(y, src1_step1, x + src1_offset1);
+        int src2_index = mad24(y, src2_step1, x + src2_offset1);
+        int dst_index = mad24(y, dst_step1, x + dst_offset1);
 
-        if (mask[mask_index])
-        {
-            int src1_index = mad24(y, src1_step, x + src1_offset);
-            int src2_index = mad24(y, src2_step, x + src2_offset);
-            int dst_index = mad24(y, dst_step, x + dst_offset);
-
-            dst[dst_index] = src1[src1_index] Operation src2[src2_index];
-        }
+        dst[dst_index] = convert_uchar(src1[src1_index] Operation src2[src2_index] ? 255 : 0);
     }
 }
