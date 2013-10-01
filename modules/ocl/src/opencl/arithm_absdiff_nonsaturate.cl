@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////////////////
+/*M///////////////////////////////////////////////////////////////////////////////////////
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -15,7 +15,8 @@
 // Third party copyrights are property of their respective owners.
 //
 // @Authors
-//    Shengen Yan,***REDACTED-EMAIL***
+//    Jia Haipeng, ***REDACTED-EMAIL***
+//
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -41,53 +42,52 @@
 // or tort (including negligence or otherwise) arising in any way out of
 // the use of this software, even if advised of the possibility of such damage.
 //
+//M*/
 
 #if defined (DOUBLE_SUPPORT)
-#ifdef cl_amd_fp64
-#pragma OPENCL EXTENSION cl_amd_fp64:enable
-#elif defined (cl_khr_fp64)
+#ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64:enable
+#elif defined (cl_amd_fp64)
+#pragma OPENCL EXTENSION cl_amd_fp64:enable
 #endif
 #endif
 
-/**************************************Count NonZero**************************************/
-
-__kernel void arithm_op_nonzero(int cols, int invalid_cols, int offset, int elemnum, int groupnum,
-                                  __global srcT *src, __global dstT *dst)
+__kernel void arithm_absdiff_nonsaturate_binary(__global srcT *src1, int src1_step, int src1_offset,
+                         __global srcT *src2, int src2_step, int src2_offset,
+                         __global dstT *dst, int dst_step, int dst_offset,
+                         int cols, int rows)
 {
-    unsigned int lid = get_local_id(0);
-    unsigned int gid = get_group_id(0);
-    unsigned int  id = get_global_id(0);
+    int x = get_global_id(0);
+    int y = get_global_id(1);
 
-    unsigned int idx = offset + id + (id / cols) * invalid_cols;
-    __local dstT localmem_nonzero[128];
-    dstT nonzero = (dstT)(0);
-    srcT zero = (srcT)(0), one = (srcT)(1);
-
-    for (int grain = groupnum << 8; id < elemnum; id += grain)
+    if (x < cols && y < rows)
     {
-        idx = offset + id + (id / cols) * invalid_cols;
-        nonzero += src[idx] == zero ? zero : one;
+        int src1_index = mad24(y, src1_step, x + src1_offset);
+        int src2_index = mad24(y, src2_step, x + src2_offset);
+        int dst_index  = mad24(y, dst_step, x + dst_offset);
+
+        dstT t0 = convertToDstT(src1[src1_index]);
+        dstT t1 = convertToDstT(src2[src2_index]);
+        dstT t2 = t0 - t1;
+
+        dst[dst_index] = t2 >= 0 ? t2 : -t2;
     }
+}
 
-    if (lid > 127)
-        localmem_nonzero[lid - 128] = nonzero;
-    barrier(CLK_LOCAL_MEM_FENCE);
+__kernel void arithm_absdiff_nonsaturate(__global srcT *src1, int src1_step, int src1_offset,
+                         __global dstT *dst, int dst_step, int dst_offset,
+                         int cols, int rows)
+{
+    int x = get_global_id(0);
+    int y = get_global_id(1);
 
-    if (lid < 128)
-        localmem_nonzero[lid] = nonzero + localmem_nonzero[lid];
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    for (int lsize = 64; lsize > 0; lsize >>= 1)
+    if (x < cols && y < rows)
     {
-        if (lid < lsize)
-        {
-           int lid2 = lsize + lid;
-           localmem_nonzero[lid] = localmem_nonzero[lid] + localmem_nonzero[lid2];
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-    }
+        int src1_index = mad24(y, src1_step, x + src1_offset);
+        int dst_index  = mad24(y, dst_step, x + dst_offset);
 
-    if (lid == 0)
-        dst[gid] = localmem_nonzero[0];
+        dstT t0 = convertToDstT(src1[src1_index]);
+
+        dst[dst_index] = t0 >= 0 ? t0 : -t0;
+    }
 }
