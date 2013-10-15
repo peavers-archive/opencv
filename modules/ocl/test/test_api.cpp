@@ -10,12 +10,8 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2010-2013, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//    Peng Xiao, ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -30,10 +26,10 @@
 //   * The name of the copyright holders may not be used to endorse or promote products
 //     derived from this software without specific prior written permission.
 //
-// This software is provided by the copyright holders and contributors as is and
+// This software is provided by the copyright holders and contributors "as is" and
 // any express or implied warranties, including, but not limited to, the implied
 // warranties of merchantability and fitness for a particular purpose are disclaimed.
-// In no event shall the Intel Corporation or contributors be liable for any direct,
+// In no event shall contributors be liable for any direct,
 // indirect, incidental, special, exemplary, or consequential damages
 // (including, but not limited to, procurement of substitute goods or services;
 // loss of use, data, or profits; or business interruption) however caused
@@ -44,46 +40,41 @@
 //M*/
 
 #include "test_precomp.hpp"
-#ifdef HAVE_OPENCL
+#include "opencv2/ocl/cl_runtime/cl_runtime.hpp" // for OpenCL types: cl_mem
 
-////////////////////////////////////////////////////////
-// Canny
-IMPLEMENT_PARAM_CLASS(AppertureSize, int);
-IMPLEMENT_PARAM_CLASS(L2gradient, bool);
-
-PARAM_TEST_CASE(Canny, AppertureSize, L2gradient)
+TEST(TestAPI, openCLExecuteKernelInterop)
 {
-    int apperture_size;
-    bool useL2gradient;
+    cv::RNG rng;
+    Size sz(10000, 1);
+    cv::Mat cpuMat = cvtest::randomMat(rng, sz, CV_32FC4, -10, 10, false);
 
-    cv::Mat edges_gold;
-    virtual void SetUp()
-    {
-        apperture_size = GET_PARAM(0);
-        useL2gradient = GET_PARAM(1);
-    }
-};
+    cv::ocl::oclMat gpuMat(cpuMat);
+    cv::ocl::oclMat gpuMatDst(sz, CV_32FC4);
 
-OCL_TEST_P(Canny, Accuracy)
-{
-    cv::Mat img = readImage("cv/shared/fruits.png", cv::IMREAD_GRAYSCALE);
-    ASSERT_FALSE(img.empty());
+    const char* kernelStr =
+"__kernel void test_kernel(__global float4* src, __global float4* dst) {\n"
+"    int x = get_global_id(0);\n"
+"    dst[x] = src[x];\n"
+"}\n";
 
-    double low_thresh = 50.0;
-    double high_thresh = 100.0;
+    cv::ocl::ProgramSource program("test_interop", kernelStr);
 
-    cv::ocl::oclMat ocl_img = cv::ocl::oclMat(img);
+    using namespace std;
+    vector<pair<size_t , const void *> > args;
+    args.push_back( make_pair( sizeof(cl_mem), (void *) &gpuMat.data ));
+    args.push_back( make_pair( sizeof(cl_mem), (void *) &gpuMatDst.data ));
 
-    cv::ocl::oclMat edges;
-    cv::ocl::Canny(ocl_img, edges, low_thresh, high_thresh, apperture_size, useL2gradient);
+    size_t globalThreads[3] = { sz.width, 1, 1 };
+    cv::ocl::openCLExecuteKernelInterop(
+        gpuMat.clCxt,
+        program,
+        "test_kernel",
+        globalThreads, NULL, args,
+        -1, -1,
+        "");
 
-    cv::Mat edges_gold;
-    cv::Canny(img, edges_gold, low_thresh, high_thresh, apperture_size, useL2gradient);
+    cv::Mat dst;
+    gpuMatDst.download(dst);
 
-    EXPECT_MAT_SIMILAR(edges_gold, edges, 1e-2);
+    EXPECT_LE(checkNorm(cpuMat, dst), 1e-3);
 }
-
-INSTANTIATE_TEST_CASE_P(OCL_ImgProc, Canny, testing::Combine(
-                            testing::Values(AppertureSize(3), AppertureSize(5)),
-                            testing::Values(L2gradient(false), L2gradient(true))));
-#endif
