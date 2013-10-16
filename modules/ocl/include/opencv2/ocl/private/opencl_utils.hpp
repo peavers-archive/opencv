@@ -10,12 +10,8 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2010-2013, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//    Peng Xiao, ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -33,7 +29,7 @@
 // This software is provided by the copyright holders and contributors as is and
 // any express or implied warranties, including, but not limited to, the implied
 // warranties of merchantability and fitness for a particular purpose are disclaimed.
-// In no event shall the Intel Corporation or contributors be liable for any direct,
+// In no event shall contributors be liable for any direct,
 // indirect, incidental, special, exemplary, or consequential damages
 // (including, but not limited to, procurement of substitute goods or services;
 // loss of use, data, or profits; or business interruption) however caused
@@ -43,47 +39,77 @@
 //
 //M*/
 
-#include "test_precomp.hpp"
-#ifdef HAVE_OPENCL
+#ifndef __OPENCV_OCL_PRIVATE_OPENCL_UTILS_HPP__
+#define __OPENCV_OCL_PRIVATE_OPENCL_UTILS_HPP__
 
-////////////////////////////////////////////////////////
-// Canny
-IMPLEMENT_PARAM_CLASS(AppertureSize, int);
-IMPLEMENT_PARAM_CLASS(L2gradient, bool);
+#include "opencv2/ocl/cl_runtime/cl_runtime.hpp"
+#include <vector>
+#include <string>
 
-PARAM_TEST_CASE(Canny, AppertureSize, L2gradient)
+namespace cl_utils {
+
+inline cl_int getPlatforms(std::vector<cl_platform_id>& platforms)
 {
-    int apperture_size;
-    bool useL2gradient;
+    cl_uint n = 0;
 
-    cv::Mat edges_gold;
-    virtual void SetUp()
-    {
-        apperture_size = GET_PARAM(0);
-        useL2gradient = GET_PARAM(1);
-    }
-};
+    cl_int err = ::clGetPlatformIDs(0, NULL, &n);
+    if (err != CL_SUCCESS)
+        return err;
 
-OCL_TEST_P(Canny, Accuracy)
-{
-    cv::Mat img = readImage("cv/shared/fruits.png", cv::IMREAD_GRAYSCALE);
-    ASSERT_FALSE(img.empty());
+    platforms.clear(); platforms.resize(n);
+    err = ::clGetPlatformIDs(n, &platforms[0], NULL);
+    if (err != CL_SUCCESS)
+        return err;
 
-    double low_thresh = 50.0;
-    double high_thresh = 100.0;
-
-    cv::ocl::oclMat ocl_img = cv::ocl::oclMat(img);
-
-    cv::ocl::oclMat edges;
-    cv::ocl::Canny(ocl_img, edges, low_thresh, high_thresh, apperture_size, useL2gradient);
-
-    cv::Mat edges_gold;
-    cv::Canny(img, edges_gold, low_thresh, high_thresh, apperture_size, useL2gradient);
-
-    EXPECT_MAT_SIMILAR(edges_gold, edges, 1e-2);
+    return CL_SUCCESS;
 }
 
-INSTANTIATE_TEST_CASE_P(OCL_ImgProc, Canny, testing::Combine(
-                            testing::Values(AppertureSize(3), AppertureSize(5)),
-                            testing::Values(L2gradient(false), L2gradient(true))));
-#endif
+inline cl_int getDevices(cl_platform_id platform, cl_device_type type, std::vector<cl_device_id>& devices)
+{
+    cl_uint n = 0;
+
+    cl_int err = ::clGetDeviceIDs(platform, type, 0, NULL, &n);
+    if (err != CL_SUCCESS)
+        return err;
+
+    devices.clear(); devices.resize(n);
+    err = ::clGetDeviceIDs(platform, type, n, &devices[0], NULL);
+    if (err != CL_SUCCESS)
+        return err;
+
+    return CL_SUCCESS;
+}
+
+
+
+
+template <typename Functor, typename ObjectType, typename T>
+inline cl_int getScalarInfo(Functor f, ObjectType obj, cl_uint name, T& param)
+{
+    return f(obj, name, sizeof(T), &param, NULL);
+}
+
+template <typename Functor, typename ObjectType>
+inline cl_int getStringInfo(Functor f, ObjectType obj, cl_uint name, std::string& param)
+{
+    ::size_t required;
+    cl_int err = f(obj, name, 0, NULL, &required);
+    if (err != CL_SUCCESS)
+        return err;
+
+    param.clear();
+    if (required > 0)
+    {
+        std::vector<char> buf(required + 1, char(0));
+        err = f(obj, name, required, &buf[0], NULL);
+        if (err != CL_SUCCESS)
+            return err;
+        param = &buf[0];
+    }
+
+    return CL_SUCCESS;
+};
+
+} // namespace cl_utils
+
+#endif // __OPENCV_OCL_PRIVATE_OPENCL_UTILS_HPP__
