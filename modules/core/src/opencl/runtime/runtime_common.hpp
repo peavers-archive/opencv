@@ -10,14 +10,8 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Institute Of Software Chinese Academy Of Science, all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
+// Copyright (C) 2010-2013, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//    Guoping Long, ***REDACTED-EMAIL***
-//    Yao Wang, ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -35,7 +29,7 @@
 // This software is provided by the copyright holders and contributors "as is" and
 // any express or implied warranties, including, but not limited to, the implied
 // warranties of merchantability and fitness for a particular purpose are disclaimed.
-// In no event shall the Intel Corporation or contributors be liable for any direct,
+// In no event shall the OpenCV Foundation or contributors be liable for any direct,
 // indirect, incidental, special, exemplary, or consequential damages
 // (including, but not limited to, procurement of substitute goods or services;
 // loss of use, data, or profits; or business interruption) however caused
@@ -45,52 +39,19 @@
 //
 //M*/
 
-#ifndef __OPENCV_PRECOMP_H__
-#define __OPENCV_PRECOMP_H__
+#ifndef __OPENCV_CORE_OCL_RUNTIME_COMMON_HPP__
+#define __OPENCV_CORE_OCL_RUNTIME_COMMON_HPP__
 
-#if defined _MSC_VER && _MSC_VER >= 1200
-#pragma warning( disable: 4127 4267 4324 4244 4251 4710 4711 4514 4996 )
-#endif
+namespace cv { namespace ocl { namespace runtime {
 
-#if defined(_WIN32)
-#include <windows.h>
-#endif
-
-#include "cvconfig.h"
-
-#include <map>
-#include <iostream>
-#include <limits>
-#include <vector>
-#include <algorithm>
-#include <sstream>
-#include <exception>
-#include <stdio.h>
-
-#undef OPENCV_NOSTL
-
-#include "opencv2/imgproc.hpp"
-#include "opencv2/objdetect/objdetect_c.h"
-#include "opencv2/ocl.hpp"
-
-#include "opencv2/core/utility.hpp"
-#include "opencv2/core/private.hpp"
-
-#define __ATI__
-
-#if defined (HAVE_OPENCL)
-
-#define CL_USE_DEPRECATED_OPENCL_1_1_APIS
-#include "opencv2/ocl/private/util.hpp"
-#include "safe_call.hpp"
-
-#else /* defined(HAVE_OPENCL) */
-
-static inline void throw_nogpu()
+struct DynamicFnEntry
 {
-    CV_Error(CV_GpuNotSupported, "The library is compilled without OpenCL support.\n");
-}
+    const char* fnName; // "clCreateContext"
+    void** ppFn; // &clCreateContext_pfn
+};
 
-#endif /* defined(HAVE_OPENCL) */
+} } } // namespace cv::ocl::runtime
 
-#endif /* __OPENCV_PRECOMP_H__ */
+using namespace cv::ocl::runtime;
+
+#endif // __OPENCV_CORE_OCL_RUNTIME_COMMON_HPP__
