@@ -93,6 +93,12 @@ namespace cv
         }
         return result;
     }
+
+    inline Mat make_gray(const Mat& image)
+    {
+        Mat chs[3]; split(image, chs);
+        return 0.114 * chs[0] + 0.58 * chs[1] + 0.3 * chs[2];
+    }
 }
 
 #endif

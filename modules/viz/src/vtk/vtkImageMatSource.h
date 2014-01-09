@@ -42,37 +42,43 @@
 //
 //M*/
 
-#ifndef __vtkXYZWriter_h
-#define __vtkXYZWriter_h
+#include "precomp.hpp"
 
-#include "vtkPolyDataWriter.h"
+#ifndef __vtkImageMatSource_h
+#define __vtkImageMatSource_h
 
 namespace cv
 {
     namespace viz
     {
-        class vtkXYZWriter : public vtkPolyDataWriter
+        class vtkImageMatSource : public vtkImageAlgorithm
         {
         public:
-            static vtkXYZWriter *New();
-            vtkTypeMacro(vtkXYZWriter,vtkPolyDataWriter)
-            void PrintSelf(ostream& os, vtkIndent indent);
+            static vtkImageMatSource *New();
+            vtkTypeMacro(vtkImageMatSource,vtkImageAlgorithm);
 
-            vtkGetMacro(DecimalPrecision, int)
-            vtkSetMacro(DecimalPrecision, int)
+            void SetImage(InputArray image);
 
         protected:
-            vtkXYZWriter();
-            ~vtkXYZWriter(){}
+            vtkImageMatSource();
+            ~vtkImageMatSource() {}
 
-            void WriteData();
+            vtkSmartPointer<vtkImageData> ImageData;
 
-            int DecimalPrecision;
-
+            int RequestInformation(vtkInformation*, vtkInformationVector**, vtkInformationVector*);
+            int RequestData (vtkInformation*, vtkInformationVector**, vtkInformationVector*);
         private:
-            vtkXYZWriter(const vtkXYZWriter&);  // Not implemented.
-            void operator=(const vtkXYZWriter&);  // Not implemented.
+            vtkImageMatSource(const vtkImageMatSource&);  // Not implemented.
+            void operator=(const vtkImageMatSource&);  // Not implemented.
+
+            static void copyGrayImage(const Mat &source, vtkSmartPointer<vtkImageData> output);
+            static void copyRGBImage (const Mat &source, vtkSmartPointer<vtkImageData> output);
+            static void copyRGBAImage(const Mat &source, vtkSmartPointer<vtkImageData> output);
         };
     }
 }
+
+
 #endif
+
+
