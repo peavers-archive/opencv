@@ -10,8 +10,13 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2013, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
+// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
+//
+// @Authors
+//    Fangfang Bai, ***REDACTED-EMAIL***
+//    Jin Ma,       ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -29,7 +34,7 @@
 // This software is provided by the copyright holders and contributors as is and
 // any express or implied warranties, including, but not limited to, the implied
 // warranties of merchantability and fitness for a particular purpose are disclaimed.
-// In no event shall contributors be liable for any direct,
+// In no event shall the Intel Corporation or contributors be liable for any direct,
 // indirect, incidental, special, exemplary, or consequential damages
 // (including, but not limited to, procurement of substitute goods or services;
 // loss of use, data, or profits; or business interruption) however caused
@@ -39,77 +44,62 @@
 //
 //M*/
 
-#ifndef __OPENCV_OCL_PRIVATE_OPENCL_UTILS_HPP__
-#define __OPENCV_OCL_PRIVATE_OPENCL_UTILS_HPP__
+#include "perf_precomp.hpp"
+#include "opencv2/ts/ocl_perf.hpp"
 
-#include "opencv2/core/opencl/runtime/opencl_core.hpp"
-#include <vector>
-#include <string>
+#ifdef HAVE_OPENCL
 
-namespace cl_utils {
+namespace cvtest {
+namespace ocl {
 
-inline cl_int getPlatforms(std::vector<cl_platform_id>& platforms)
+///////////// PyrDown //////////////////////
+
+typedef Size_MatType PyrDownFixture;
+
+OCL_PERF_TEST_P(PyrDownFixture, PyrDown,
+            ::testing::Combine(OCL_TEST_SIZES, OCL_TEST_TYPES))
 {
-    cl_uint n = 0;
+    const Size_MatType_t params = GetParam();
+    const Size srcSize = get<0>(params);
+    const int type = get<1>(params);
+    const Size dstSize((srcSize.height + 1) >> 1, (srcSize.width + 1) >> 1);
+    const double eps = CV_MAT_DEPTH(type) <= CV_32S ? 1 : 1e-5;
 
-    cl_int err = ::clGetPlatformIDs(0, NULL, &n);
-    if (err != CL_SUCCESS)
-        return err;
+    checkDeviceMaxMemoryAllocSize(srcSize, type);
+    checkDeviceMaxMemoryAllocSize(dstSize, type);
 
-    platforms.clear(); platforms.resize(n);
-    err = ::clGetPlatformIDs(n, &platforms[0], NULL);
-    if (err != CL_SUCCESS)
-        return err;
+    UMat src(srcSize, type), dst(dstSize, type);
+    declare.in(src, WARMUP_RNG).out(dst);
 
-    return CL_SUCCESS;
+    OCL_TEST_CYCLE() cv::pyrDown(src, dst);
+
+    SANITY_CHECK(dst, eps);
 }
 
-inline cl_int getDevices(cl_platform_id platform, cl_device_type type, std::vector<cl_device_id>& devices)
+///////////// PyrUp ////////////////////////
+
+typedef Size_MatType PyrUpFixture;
+
+OCL_PERF_TEST_P(PyrUpFixture, PyrUp,
+            ::testing::Combine(OCL_TEST_SIZES, OCL_TEST_TYPES))
 {
-    cl_uint n = 0;
+    const Size_MatType_t params = GetParam();
+    const Size srcSize = get<0>(params);
+    const int type = get<1>(params);
+    const Size dstSize(srcSize.height << 1, srcSize.width << 1);
+    const double eps = CV_MAT_DEPTH(type) <= CV_32S ? 1 : 1e-5;
 
-    cl_int err = ::clGetDeviceIDs(platform, type, 0, NULL, &n);
-    if (err != CL_SUCCESS)
-        return err;
+    checkDeviceMaxMemoryAllocSize(srcSize, type);
+    checkDeviceMaxMemoryAllocSize(dstSize, type);
 
-    devices.clear(); devices.resize(n);
-    err = ::clGetDeviceIDs(platform, type, n, &devices[0], NULL);
-    if (err != CL_SUCCESS)
-        return err;
+    UMat src(srcSize, type), dst(dstSize, type);
+    declare.in(src, WARMUP_RNG).out(dst);
 
-    return CL_SUCCESS;
+    OCL_TEST_CYCLE() cv::pyrDown(src, dst);
+
+    SANITY_CHECK(dst, eps);
 }
 
+} } // namespace cvtest::ocl
 
-
-
-template <typename Functor, typename ObjectType, typename T>
-inline cl_int getScalarInfo(Functor f, ObjectType obj, cl_uint name, T& param)
-{
-    return f(obj, name, sizeof(T), &param, NULL);
-}
-
-template <typename Functor, typename ObjectType>
-inline cl_int getStringInfo(Functor f, ObjectType obj, cl_uint name, std::string& param)
-{
-    ::size_t required;
-    cl_int err = f(obj, name, 0, NULL, &required);
-    if (err != CL_SUCCESS)
-        return err;
-
-    param.clear();
-    if (required > 0)
-    {
-        std::vector<char> buf(required + 1, char(0));
-        err = f(obj, name, required, &buf[0], NULL);
-        if (err != CL_SUCCESS)
-            return err;
-        param = &buf[0];
-    }
-
-    return CL_SUCCESS;
-}
-
-} // namespace cl_utils
-
-#endif // __OPENCV_OCL_PRIVATE_OPENCL_UTILS_HPP__
+#endif // HAVE_OPENCL

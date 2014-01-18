@@ -7,12 +7,16 @@
 //  copy or use the software.
 //
 //
-//                          License Agreement
+//                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
-// Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
+// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
+//
+// @Authors
+//    Fangfang Bai, ***REDACTED-EMAIL***
+//    Jin Ma,       ***REDACTED-EMAIL***
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -22,12 +26,12 @@
 //
 //   * Redistribution's in binary form must reproduce the above copyright notice,
 //     this list of conditions and the following disclaimer in the documentation
-//     and/or other materials provided with the distribution.
+//     and/or other Materials provided with the distribution.
 //
 //   * The name of the copyright holders may not be used to endorse or promote products
 //     derived from this software without specific prior written permission.
 //
-// This software is provided by the copyright holders and contributors "as is" and
+// This software is provided by the copyright holders and contributors as is and
 // any express or implied warranties, including, but not limited to, the implied
 // warranties of merchantability and fitness for a particular purpose are disclaimed.
 // In no event shall the Intel Corporation or contributors be liable for any direct,
@@ -40,35 +44,35 @@
 //
 //M*/
 
-#include "precomp.hpp"
+#include "perf_precomp.hpp"
+#include "opencv2/ts/ocl_perf.hpp"
 
-namespace cv
+#ifdef HAVE_OPENCL
+
+namespace cvtest {
+namespace ocl {
+
+///////////// Moments ////////////////////////
+
+typedef tuple<Size, bool> MomentsParams;
+typedef TestBaseWithParam<MomentsParams> MomentsFixture;
+
+OCL_PERF_TEST_P(MomentsFixture, Moments,
+    ::testing::Combine(OCL_TEST_SIZES, ::testing::Bool()))
 {
+    const MomentsParams params = GetParam();
+    const Size srcSize = get<0>(params);
+    const bool binaryImage = get<1>(params);
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    cv::Moments m;
+    UMat src(srcSize, CV_8UC1);
+    declare.in(src, WARMUP_RNG);
 
-CV_INIT_ALGORITHM(SURF, "Feature2D.SURF",
-                  obj.info()->addParam(obj, "hessianThreshold", obj.hessianThreshold);
-                  obj.info()->addParam(obj, "nOctaves", obj.nOctaves);
-                  obj.info()->addParam(obj, "nOctaveLayers", obj.nOctaveLayers);
-                  obj.info()->addParam(obj, "extended", obj.extended);
-                  obj.info()->addParam(obj, "upright", obj.upright))
+    OCL_TEST_CYCLE() m = cv::moments(src, binaryImage);
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-CV_INIT_ALGORITHM(SIFT, "Feature2D.SIFT",
-                  obj.info()->addParam(obj, "nFeatures", obj.nfeatures);
-                  obj.info()->addParam(obj, "nOctaveLayers", obj.nOctaveLayers);
-                  obj.info()->addParam(obj, "contrastThreshold", obj.contrastThreshold);
-                  obj.info()->addParam(obj, "edgeThreshold", obj.edgeThreshold);
-                  obj.info()->addParam(obj, "sigma", obj.sigma))
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool initModule_nonfree(void)
-{
-    Ptr<Algorithm> sift = createSIFT_ptr_hidden(), surf = createSURF_ptr_hidden();
-    return sift->info() != 0 && surf->info() != 0;
+    SANITY_CHECK_MOMENTS(m, 1e-6, ERROR_RELATIVE);
 }
 
-}
+} } // namespace cvtest::ocl
+
+#endif // HAVE_OPENCL
