@@ -10,14 +10,9 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2010-2012, Multicoreware, Inc., all rights reserved.
-// Copyright (C) 2010-2012, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
+// Copyright (C) 2009, Willow Garage Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
-//
-// @Authors
-//        Dachuan Zhao, ***REDACTED-EMAIL***
-//        Yao Wang, ***REDACTED-EMAIL***
-//
 //
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -44,48 +39,15 @@
 // the use of this software, even if advised of the possibility of such damage.
 //
 //M*/
-#include "precomp.hpp"
-#include "opencl_kernels.hpp"
 
-using namespace cv;
-using namespace cv::ocl;
+#ifndef __OPENCV_PERF_UTIL_HPP__
+#define __OPENCV_PERF_UTIL_HPP__
 
-//////////////////////////////////////////////////////////////////////////////
-/////////////////////// add subtract multiply divide /////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-static void pyrdown_run(const oclMat &src, const oclMat &dst)
-{
-
-    CV_Assert(src.type() == dst.type());
-    CV_Assert(src.depth() != CV_8S);
-
-    Context  *clCxt = src.clCxt;
-    string kernelName = "pyrDown";
-
-    size_t localThreads[3]  = { 256, 1, 1 };
-    size_t globalThreads[3] = { (size_t)src.cols, (size_t)dst.rows, 1};
-
-    vector<pair<size_t , const void *> > args;
-    args.push_back( make_pair( sizeof(cl_mem), (void *)&src.data ));
-    args.push_back( make_pair( sizeof(cl_int), (void *)&src.step ));
-    args.push_back( make_pair( sizeof(cl_int), (void *)&src.rows));
-    args.push_back( make_pair( sizeof(cl_int), (void *)&src.cols));
-    args.push_back( make_pair( sizeof(cl_mem), (void *)&dst.data ));
-    args.push_back( make_pair( sizeof(cl_int), (void *)&dst.step ));
-    args.push_back( make_pair( sizeof(cl_int), (void *)&dst.cols));
-
-    openCLExecuteKernel(clCxt, &pyr_down, kernelName, globalThreads, localThreads, args, src.oclchannels(), src.depth());
+namespace perf {
+DEF_PARAM_TEST_1(Sz, cv::Size);
+typedef ::perf::Size_MatType Sz_Type;
+DEF_PARAM_TEST(Sz_Depth, cv::Size, ::perf::MatDepth);
+DEF_PARAM_TEST(Sz_Depth_Cn, cv::Size, ::perf::MatDepth, MatCn);
 }
-//////////////////////////////////////////////////////////////////////////////
-// pyrDown
 
-void cv::ocl::pyrDown(const oclMat &src, oclMat &dst)
-{
-    int depth = src.depth(), channels = src.channels();
-    CV_Assert(depth == CV_8U || depth == CV_16U || depth == CV_16S || depth == CV_32F);
-    CV_Assert(channels == 1 || channels == 3 || channels == 4);
-
-    dst.create((src.rows + 1) / 2, (src.cols + 1) / 2, src.type());
-
-    pyrdown_run(src, dst);
-}
+#endif // __OPENCV_PERF_UTIL_HPP__
