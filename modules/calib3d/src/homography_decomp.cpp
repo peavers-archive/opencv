@@ -16,7 +16,7 @@
  //                           License Agreement
  //                For Open Source Computer Vision Library
  //
- // Copyright (C) 2014, Samson Yilma¸ (***REDACTED-EMAIL***), all rights reserved.
+ // Copyright (C) 2014, Samson Yilma (***REDACTED-EMAIL***), all rights reserved.
  //
  // Third party copyrights are property of their respective owners.
  //
